@@ -120,8 +120,9 @@
                             }
                             <div class="project-overlay">
                                 <div class="project-links">
-                                    ${p.demoLink ? `<a href="${p.demoLink}" target="_blank" class="project-link" title="Live Demo"><i class="fas fa-external-link-alt"></i></a>` : ''}
-                                    ${p.githubLink ? `<a href="${p.githubLink}" target="_blank" class="project-link" title="GitHub"><i class="fab fa-github"></i></a>` : ''}
+                                    ${p.demoLink ? `<a href="${p.demoLink}" target="_blank" class="project-link" title="Live Demo / Dashboard"><i class="fas fa-external-link-alt"></i></a>` : ''}
+                                    ${p.githubLink ? `<a href="${p.githubLink}" target="_blank" class="project-link" title="View Code (GitHub / Kaggle)"><i class="fab fa-github"></i></a>` : ''}
+                                    ${p.fileLink ? `<a href="${p.fileLink}" target="_blank" class="project-link" title="${p.fileType || 'Download File'}"><i class="fas fa-file-download"></i></a>` : ''}
                                 </div>
                             </div>
                         </div>

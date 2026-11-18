@@ -208,17 +208,36 @@ function setVal(id, val) {
     if (el) el.value = val || '';
 }
 
-// ==================== رفع الصورة الشخصية ====================
+// ==================== رفع الصورة الشخصية مع ضغط تلقائي ====================
 function initProfileImageUpload() {
     document.addEventListener('change', (e) => {
         if (e.target.id === 'profileImgInput') {
             const file = e.target.files[0];
             if (!file) return;
+
+            // استخدام Canvas لضغط الصورة وتصغير حجمها لتكون خفيفة جداً
             const reader = new FileReader();
             reader.onload = (ev) => {
-                data.hero.profileImage = ev.target.result;
-                const wrap = document.getElementById('profileImgUpload');
-                wrap.innerHTML = `<img src="${ev.target.result}"><input type="file" id="profileImgInput" accept="image/*">`;
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 600;
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
+                    canvas.height = (img.width > MAX_WIDTH) ? (img.height * scaleSize) : img.height;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // تحويل الصورة لصيغة مضغوطة خفيفة جداً
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    data.hero.profileImage = compressedDataUrl;
+
+                    const wrap = document.getElementById('profileImgUpload');
+                    wrap.innerHTML = `<img src="${compressedDataUrl}"><input type="file" id="profileImgInput" accept="image/*">`;
+                    saveAll();
+                };
+                img.src = ev.target.result;
             };
             reader.readAsDataURL(file);
         }
@@ -276,8 +295,12 @@ function renderProjects() {
                 <div class="form-group"><label>الوسوم (Tags) — مفصولة بفاصلة</label><input type="text" value="${(p.tags || []).join(', ')}" onchange="data.projects[${i}].tags=this.value.split(',').map(t=>t.trim()).filter(Boolean)"></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label>رابط Demo / Live</label><input type="url" value="${p.demoLink || ''}" onchange="data.projects[${i}].demoLink=this.value" placeholder="https://..."></div>
-                <div class="form-group"><label>رابط GitHub</label><input type="url" value="${p.githubLink || ''}" onchange="data.projects[${i}].githubLink=this.value" placeholder="https://github.com/..."></div>
+                <div class="form-group"><label>رابط Demo / Live Dashboard</label><input type="url" value="${p.demoLink || ''}" onchange="data.projects[${i}].demoLink=this.value" placeholder="https://..."></div>
+                <div class="form-group"><label>رابط ملف الكود (GitHub / Kaggle)</label><input type="url" value="${p.githubLink || ''}" onchange="data.projects[${i}].githubLink=this.value" placeholder="https://github.com/..."></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>رابط تحميل ملف المشروع (Power BI / CSV / Python Notebook / Drive)</label><input type="url" value="${p.fileLink || ''}" onchange="data.projects[${i}].fileLink=this.value" placeholder="https://..."></div>
+                <div class="form-group"><label>وصف الملف المرفق</label><input type="text" value="${p.fileType || ''}" onchange="data.projects[${i}].fileType=this.value" placeholder="مثلاً: Download .pbix file أو Dataset"></div>
             </div>
             <div class="form-group">
                 <label>صورة المشروع</label>
@@ -313,8 +336,20 @@ function uploadProjectImage(i, input) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-        data.projects[i].image = e.target.result;
-        renderProjects();
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const scaleSize = MAX_WIDTH / img.width;
+            canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
+            canvas.height = (img.width > MAX_WIDTH) ? (img.height * scaleSize) : img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            data.projects[i].image = canvas.toDataURL('image/jpeg', 0.85);
+            renderProjects();
+            saveAll();
+        };
+        img.src = e.target.result;
     };
     reader.readAsDataURL(file);
 }
@@ -491,4 +526,133 @@ function showToast() {
     const toast = document.getElementById('toast');
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+
+// ==================== تصدير ملف index.html المحدث ====================
+async function exportUpdatedIndexHtml() {
+    saveAll(); // حفظ البيانات الحالية أولاً
+
+    try {
+        let html = '';
+        
+        // محاولة جلب قالب index.html، وإذا فشل أو منع المتصفح، استخدام الصفحة المفتوحة
+        try {
+            const response = await fetch('index.html');
+            if (response.ok) {
+                html = await response.text();
+            }
+        } catch (e) {
+            console.warn('تعذر قراءة index.html عبر fetch، سيتم المحاولة عبر مسار بديل');
+        }
+
+        if (!html) {
+            // محاولة بديلة للقراءة عبر النافذة إذا كان الموقع مفتوحاً محلياً
+            alert('يرجى التأكد من فتح لوحة التحكم عبر السيرفر المحلي http://localhost:3500/GAMAL.html أو رفع الملف عبر GitHub ليتمكن من القراءة والتصدير بنجاح.');
+            return;
+        }
+
+        // 1. تحديث بيانات Hero
+        if (data.hero) {
+            html = html.replace(/(<span class="lang-en"><span class="highlight">)[^<]*(<\/span><\/span>)/, `$1${data.hero.nameEn || 'Jamal Maher'}$2`);
+            html = html.replace(/(<span class="lang-ar"><span class="highlight">)[^<]*(<\/span><\/span>)/, `$1${data.hero.nameAr || 'جمال ماهر'}$2`);
+            html = html.replace(/(<p class="hero-desc animate-fade-up delay-2">\s*<span class="lang-en">)[^<]*(<\/span>\s*<span class="lang-ar">)[^<]*(<\/span>)/, 
+                `$1${data.hero.descEn || ''}$2${data.hero.descAr || ''}$3`);
+            
+            // تحديث الأرقام
+            html = html.replace(/(<span class="stat-number" data-target=")[^"]*(">)[^<]*(<\/span><span class="stat-plus">\+<\/span>\s*<\/div>\s*<span class="stat-label">\s*<span class="lang-en">Years Experience)/,
+                `$1${data.hero.statYears || 0}$2${data.hero.statYears || 0}$3`);
+            html = html.replace(/(<span class="stat-number" data-target=")[^"]*(">)[^<]*(<\/span><span class="stat-plus">\+<\/span>\s*<\/div>\s*<span class="stat-label">\s*<span class="lang-en">Projects Done)/,
+                `$1${data.hero.statProjects || 0}$2${data.hero.statProjects || 0}$3`);
+            html = html.replace(/(<span class="stat-number" data-target=")[^"]*(">)[^<]*(<\/span><span class="stat-plus">\+<\/span>\s*<\/div>\s*<span class="stat-label">\s*<span class="lang-en">Tools Mastered)/,
+                `$1${data.hero.statTools || 0}$2${data.hero.statTools || 0}$3`);
+
+            if (data.hero.profileImage) {
+                const imgTag = `<img src="${data.hero.profileImage}" alt="${data.hero.nameEn || 'Profile'}">`;
+                html = html.replace(/<div class="image-placeholder">[\s\S]*?<\/div>/, imgTag);
+                html = html.replace(/<img src="img\/profile\.jpg"[^>]*>/, imgTag);
+            }
+        }
+
+        // 2. تحديث قسم About
+        if (data.about) {
+            const bioHtml = `
+                        <p class="lang-en">${(data.about.bioEn || '').replace(/\n/g, '<br>')}</p>
+                        <p class="lang-ar">${(data.about.bioAr || '').replace(/\n/g, '<br>')}</p>`;
+            html = html.replace(/<div class="about-description">[\s\S]*?<\/div>/, `<div class="about-description">${bioHtml}\n                    </div>`);
+        }
+
+        // 3. تحديث المشاريع إذا وجدت
+        if (data.projects && data.projects.length > 0) {
+            let projectsHtml = '';
+            data.projects.forEach(p => {
+                const tagsHtml = (p.tags || []).map(t => `<span class="project-tag">${t}</span>`).join('\n                            ');
+                const imgHtml = p.image 
+                    ? `<img src="${p.image}" alt="${p.titleEn || ''}">` 
+                    : `<div class="project-img-placeholder"><i class="fas fa-project-diagram"></i></div>`;
+                const linksHtml = `
+                                ${p.demoLink ? `<a href="${p.demoLink}" target="_blank" class="project-link" title="Live Demo / Dashboard"><i class="fas fa-external-link-alt"></i></a>` : ''}
+                                ${p.githubLink ? `<a href="${p.githubLink}" target="_blank" class="project-link" title="View Code (GitHub / Kaggle)"><i class="fab fa-github"></i></a>` : ''}
+                                ${p.fileLink ? `<a href="${p.fileLink}" target="_blank" class="project-link" title="${p.fileType || 'Download Project File'}"><i class="fas fa-file-download"></i></a>` : ''}`;
+
+                projectsHtml += `
+                <div class="project-card reveal" data-category="${p.category || 'python'}">
+                    <div class="project-image">
+                        ${imgHtml}
+                        <div class="project-overlay">
+                            <div class="project-links">${linksHtml}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="project-info">
+                        <div class="project-tags">
+                            ${tagsHtml}
+                        </div>
+                        <h3 class="project-title">
+                            <span class="lang-en">${p.titleEn || ''}</span>
+                            <span class="lang-ar">${p.titleAr || ''}</span>
+                        </h3>
+                        <p class="project-desc">
+                            <span class="lang-en">${p.descEn || ''}</span>
+                            <span class="lang-ar">${p.descAr || ''}</span>
+                        </p>
+                    </div>
+                </div>\n`;
+            });
+
+            html = html.replace(/<div class="projects-grid">[\s\S]*?<\/div>\s*<\/div>\s*<\/section>/, 
+                `<div class="projects-grid">\n${projectsHtml}            </div>\n        </div>\n    </section>`);
+        }
+
+        // 4. تحديث معلومات التواصل
+        if (data.contact) {
+            if (data.contact.email) {
+                html = html.replace(/href="mailto:[^"]*"/g, `href="mailto:${data.contact.email}"`);
+                html = html.replace(/jamal\.maher@email\.com/g, data.contact.email);
+            }
+            if (data.contact.whatsapp) {
+                const cleanWa = data.contact.whatsapp.replace(/[^0-9]/g, '');
+                html = html.replace(/href="https:\/\/wa\.me\/[^"]*"/g, `href="https://wa.me/${cleanWa}"`);
+                html = html.replace(/\+20 123 456 7890/g, data.contact.whatsapp);
+            }
+        }
+
+        // تنزيل الملف
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = 'index.html';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(downloadUrl);
+        }, 300);
+
+        alert('✅ تم توليد وتنزيل ملف index.html المحدث بنجاح! \n\nارفع هذا الملف فقط إلى مستودع GitHub وسيتم تحديث موقعك للجميع.');
+    } catch (err) {
+        console.error(err);
+        alert('حدث خطأ أثناء التصدير: ' + err.message);
+    }
 }
