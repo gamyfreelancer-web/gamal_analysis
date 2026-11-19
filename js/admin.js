@@ -637,6 +637,24 @@ async function exportUpdatedIndexHtml() {
             }
         }
 
+        // 5. تحديث قسم المعلمين إذا وجد
+        if (data.mentors && data.mentors.length > 0) {
+            let mentorsHtml = '';
+            data.mentors.forEach(m => {
+                mentorsHtml += `
+                    <div class="mentor-card">
+                        <i class="fas fa-user-tie"></i>
+                        <div class="mentor-info">
+                            <span class="lang-en">${m.nameEn || ''}</span>
+                            <span class="lang-ar">${m.nameAr || ''}</span>
+                            ${m.link ? `<a href="${m.link}" target="_blank"><i class="fab fa-youtube"></i> YouTube</a>` : ''}
+                        </div>
+                    </div>`;
+            });
+            html = html.replace(/<div class="mentors-grid">[\s\S]*?<\/div>\s*<\/div>\s*<\/div>\s*<\/section>/,
+                `<div class="mentors-grid">${mentorsHtml}\n                </div>\n            </div>\n        </div>\n    </section>`);
+        }
+
         // تنزيل الملف
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
         const downloadUrl = URL.createObjectURL(blob);
